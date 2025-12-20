@@ -1,0 +1,23 @@
+# ROS2
+build/
+install/
+log/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Arduino
+.arduino15/
+.cli-config.yml
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Secrets (IMPORTANT)
+**/arduino_secrets.h
