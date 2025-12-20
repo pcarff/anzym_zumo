@@ -87,7 +87,7 @@ class TelemetryGUI(Node):
 
     def listener_callback(self, msg):
         data = msg.data
-        if len(data) < 3: # Reduced requirement
+        if len(data) < 3:
             return
             
         try:
