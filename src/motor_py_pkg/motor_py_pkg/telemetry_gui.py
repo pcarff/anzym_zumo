@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from std_msgs.msg import Float32MultiArray
 import tkinter as tk
 from tkinter import ttk
@@ -71,43 +72,42 @@ class TelemetryGUI(Node):
         ttk.Label(imu_frame, textvariable=self.var_imu, font=("Consolas", 10), justify=tk.LEFT).pack()
 
         # ROS Connection
+        # Arduino uses Best Effort, so we must too!
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+        
         self.subscription = self.create_subscription(
             Float32MultiArray,
-            'zumo_telemetry',
+            'zt',
             self.listener_callback,
-            10)
+            qos_profile) # Updated QoS
 
     def listener_callback(self, msg):
         data = msg.data
-        if len(data) < 18:
+        if len(data) < 3: # Reduced requirement
             return
             
-        # Update GUI (Must be done in main thread really, but simple updates often work or use after)
-        # For strict safety we should use root.after, but let's try direct updates first for simplicity
         try:
             # Battery
             batt_mv = data[0]
             self.var_battery.set(f"{batt_mv:.0f} mV")
             self.batt_bar['value'] = batt_mv
             
-            # IMU
-            self.var_imu.set(
-                f"Accel: X={data[1]:.0f}  Y={data[2]:.0f}  Z={data[3]:.0f}\n"
-                f"Mag  : X={data[4]:.0f}  Y={data[5]:.0f}  Z={data[6]:.0f}\n"
-                f"Gyro : X={data[7]:.0f}  Y={data[8]:.0f}  Z={data[9]:.0f}"
-            )
-            
-            # Line Sensors
-            for i in range(6):
-                self.line_bars[i]['value'] = data[10+i]
-                
             # Motors
-            self.l_motor['value'] = abs(data[16])
-            self.r_motor['value'] = abs(data[17])
-            self.var_motors.set(f"L: {data[16]:.0f} | R: {data[17]:.0f}")
+            self.l_motor['value'] = abs(data[1])
+            self.r_motor['value'] = abs(data[2])
+            self.var_motors.set(f"L: {data[1]:.0f} | R: {data[2]:.0f}")
+            
+            # IMU & Line (Not sent effectively to save RAM)
+            # Keeping UI placeholders static or last known state
             
         except Exception as e:
             print(f"GUI Update Error: {e}")
+            
+
 
 def ros_spin_thread(node):
     rclpy.spin(node)

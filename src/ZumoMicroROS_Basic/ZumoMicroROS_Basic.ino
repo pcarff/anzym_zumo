@@ -6,6 +6,7 @@
 #include <rclc/executor.h>
 
 #include <std_msgs/msg/int32.h>
+#include <std_msgs/msg/float32_multi_array.h>
 #include "arduino_secrets.h" 
 
 // --- Motor Pins (Zumo Shield v1.2) ---
@@ -14,6 +15,12 @@
 #define RIGHT_PWM_PIN 9
 #define LEFT_PWM_PIN  10
 #define LED_PIN 13
+#define BATTERY_PIN A1
+
+// --- Telemetry Objects ---
+rcl_publisher_t telemetry_pub;
+std_msgs__msg__Float32MultiArray telemetry_msg;
+float telemetry_data[3]; // Optimizing: sending only Batt, L_Speed, R_Speed (12 bytes vs 72 bytes)
 
 // --- Motor Settings ---
 #define MAX_SPEED 255
@@ -39,6 +46,8 @@ rcl_node_t node;
 
 // --- Globals ---
 unsigned long lastMessageTime = 0;
+int current_left_speed = 0;
+int current_right_speed = 0;
 
 void error_loop(){
   while(1){
@@ -72,13 +81,6 @@ void subscription_callback(const void * msgin)
 
   setLeftSpeed(leftSpeed);
   setRightSpeed(rightSpeed);
-
-  // Debug (optional, might affect timing)
-  /*
-  Serial.print("Recv: "); Serial.print(msg->data);
-  Serial.print(" | L: "); Serial.print(leftSpeed);
-  Serial.print(" R: "); Serial.println(rightSpeed);
-  */
 }
 
 void setup() {
@@ -111,7 +113,7 @@ void setup() {
   RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
   // create node
-  RCCHECK(rclc_node_init_default(&node, "zumo_node", "", &support));
+  RCCHECK(rclc_node_init_default(&node, "zn", "", &support)); // "zumo_node" -> "zn"
 
   // create subscriber
   RCCHECK(rclc_subscription_init_best_effort(
@@ -120,14 +122,42 @@ void setup() {
     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
     "cmd_vel"));
 
-  // create executor
+  // create telemetry publisher
+  RCCHECK(rclc_publisher_init_best_effort(
+    &telemetry_pub,
+    &node,
+    ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32MultiArray),
+    "zt")); // "zumo_telemetry" -> "zt"
+    
+  // create executor (1 handle: 1 sub) - Timer removed to save RAM
   RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
   RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg, &subscription_callback, ON_NEW_DATA));
 }
 
 void loop() {
   // 10ms timeout for better responsiveness
-  RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
+  RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10)));
+
+  // --- Telemetry Section (Run every 100ms) ---
+  static unsigned long lastTelemetryTime = 0;
+  if (millis() - lastTelemetryTime > 100) {
+    lastTelemetryTime = millis();
+    
+    // 1. Read Battery (Zumo uses 3/2 divider on A1)
+    float battery_mv = (float)analogRead(BATTERY_PIN) * (5000.0f / 1023.0f) * 1.5f;
+    
+    // 2. Populate Data (Reduced set)
+    telemetry_data[0] = battery_mv;
+    telemetry_data[1] = (float)current_left_speed;
+    telemetry_data[2] = (float)current_right_speed;
+
+    // 3. Publish
+    telemetry_msg.data.data = telemetry_data;
+    telemetry_msg.data.size = 3;
+    telemetry_msg.data.capacity = 3;
+    
+    RCSOFTCHECK(rcl_publish(&telemetry_pub, &telemetry_msg, NULL));
+  }
 
   // Safety Timeout: Stop motors if no message for 2 seconds
   if (millis() - lastMessageTime > 2000) {
@@ -144,6 +174,7 @@ void loop() {
 }
 
 void setLeftSpeed(int speed) {
+  current_left_speed = speed; // Update global for telemetry
   bool reverse = false;
   if (speed < 0) {
     speed = -speed;
@@ -155,6 +186,7 @@ void setLeftSpeed(int speed) {
 }
 
 void setRightSpeed(int speed) {
+  current_right_speed = speed; // Update global for telemetry
   bool reverse = false;
   if (speed < 0) {
     speed = -speed;
