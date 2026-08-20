@@ -87,7 +87,7 @@ void setup() {
   // Use secrets from arduino_secrets.h
   // IP address from your previous configuration
   // Using const to possibly save RAM if library supports it, otherwise char[]
-  char agent_ip[] = "192.168.8.225";
+  char agent_ip[] = "192.168.8.223";
   size_t agent_port = 8888;
   
   // Standard Transport (verified working)
