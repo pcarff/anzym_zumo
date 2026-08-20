@@ -84,16 +84,7 @@ void subscription_callback(const void * msgin)
 }
 
 void setup() {
-  // Use secrets from arduino_secrets.h
-  // IP address from your previous configuration
-  // Using const to possibly save RAM if library supports it, otherwise char[]
-  char agent_ip[] = "192.168.8.223";
-  size_t agent_port = 8888;
-  
-  // Standard Transport (verified working)
-  set_microros_wifi_transports(SECRET_SSID, SECRET_PASS, agent_ip, agent_port);
-
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Zumo Micro-ROS Node Starting...");
 
   pinMode(LED_PIN, OUTPUT);
@@ -104,8 +95,19 @@ void setup() {
   pinMode(LEFT_DIR_PIN, OUTPUT);
   pinMode(RIGHT_PWM_PIN, OUTPUT);
   pinMode(LEFT_PWM_PIN, OUTPUT);
+
+  // Quick 600ms motor spin test on boot to verify motor driver
+  setLeftSpeed(150);
+  setRightSpeed(150);
+  delay(600);
+  setLeftSpeed(0);
+  setRightSpeed(0);
+
+  char agent_ip[] = "192.168.8.223";
+  size_t agent_port = 8888;
   
-  delay(2000);
+  // Standard Transport
+  set_microros_wifi_transports(SECRET_SSID, SECRET_PASS, agent_ip, agent_port);
 
   allocator = rcl_get_default_allocator();
 
