@@ -2,20 +2,22 @@
 
 # Zumo Robot Startup Script
 
-# 1. Source micro-ROS workspace
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 1. Source micro-ROS workspace (if available)
 if [ -f ~/microros_ws/install/setup.bash ]; then
     source ~/microros_ws/install/setup.bash
-else
-    echo "Error: micro-ROS workspace not found!"
-    exit 1
+elif [ -f /opt/ros/humble/setup.bash ]; then
+    source /opt/ros/humble/setup.bash
+elif [ -f /opt/ros/jazzy/setup.bash ]; then
+    source /opt/ros/jazzy/setup.bash
 fi
 
 # 2. Source Zumo workspace
-if [ -f ~/zumo_ws/install/setup.bash ]; then
+if [ -f "${SCRIPT_DIR}/install/setup.bash" ]; then
+    source "${SCRIPT_DIR}/install/setup.bash"
+elif [ -f ~/zumo_ws/install/setup.bash ]; then
     source ~/zumo_ws/install/setup.bash
-else
-    echo "Error: Zumo workspace not found! Did you run 'colcon build' in ~/zumo_ws?"
-    exit 1
 fi
 
 echo "---------------------------------------------------"
